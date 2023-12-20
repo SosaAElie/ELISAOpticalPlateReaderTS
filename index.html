@@ -97,18 +97,23 @@
                     const standards = samplesArray.filter(sample =>sample.type === "Standard");
                     const standardPoints = standards.map(standard => {return {x:standard.abConcentration, y:standard.mean}})
                     const [lrEquation, inverseLrEquation] = getLinearRegression(standards.map(standard => [standard.abConcentration, standard.mean]));
+                    const [logEquation, inverseLogEquation] = getLogarthimicRegression(standards.map(standard => [standard.abConcentration, standard.mean]))
                     const calculatedStandards = standardPoints.map(standardPoint => {return {x:inverseLrEquation(standardPoint.y), y:standardPoint.y}})
+                    const logStandards = standardPoints.map(standardPoint => {return {x:inverseLogEquation(standardPoint.y), y:standardPoint.y}})
                     new Chart(scatterPlot, {
-                            type: 'scatter',
+                    type: 'scatter',
                             data: {
                                 datasets:[{
                                     label:"Original",
                                     data:standardPoints,
                                     
-                                },
-                                {
-                                    label:"Calculated",
+                                },{
+                                    label:"Linear",
                                     data:calculatedStandards,
+                                    showLine:true,
+                                },{
+                                    label:"Logarthimic",
+                                    data:logStandards,
                                     showLine:true,
                                 }]
                             },
@@ -124,10 +129,14 @@
                     return Papa.unparse(samplesArray);
                 }
                 function getLinearRegression(xyValues){
-                    
                     const {m,b} = ss.linearRegression(xyValues);
-                    
                     return [x=>m*x+b, y=>(y-b)/m]
+                }
+                
+                function getLogarthimicRegression(xyValues){
+                    const logXyValues = xyValues.map(xy=>{return xy.x > 0?{x:Math.log(xy.x),y:xy.y}:xy})
+                    const {m,b} = ss.linearRegression(logXyValues.slice(0,-1));
+                    return [x=>(Math.log(x)*m)+b, y=>Math.exp((y-b)/m)]
                 }
         </script>
     </body>
