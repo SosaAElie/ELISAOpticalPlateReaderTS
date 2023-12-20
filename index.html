@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8">
+        <title>ELISA Optical Plate Reader</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js" integrity="sha512-dfX5uYVXzyU8+KHqj8bjo7UkOdg18PaOtpa48djpNbZHwExddghZ+ZmzWT06R5v6NSk3ZUfsH6FNEDepLx9hPQ==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    </head>
+    <body>
+        <form id = "file-form" enctype="multipart/form-data">
+            <label for = "raw-data">Select Raw Data Text File</label>
+            <input id ="raw-data" type = "file" required>
+            <label for = "template">Select Template CSV File</label>
+            <input id = "template" type = "file" required>
+            <button id = "submit-files">Submit</button>
+        </form>
+        <div id = "file-download-container"></div>
+        <script>
+            const fileForm = document.getElementById("file-form");
+            const fileDownloadContainer = document.getElementById("file-download-container");
+            fileForm.addEventListener("submit", event=>{
+                event.preventDefault();
+                const rawDataFile = event.target[0].files[0];
+                const templateFile = event.target[1].files[0];
+                const newFileName = rawDataFile.name.replace(".txt", "-processed.csv");
+
+                Papa.parse(rawDataFile, {
+                        complete(dataResults, file){
+                            Papa.parse(templateFile, {
+                                complete(templateResults, file2){
+                                    let processedFile = new File([mergeResults(dataResults.data, templateResults.data)], newFileName)
+                                    const anchorElement = document.createElement("a");
+                                    anchorElement.href = URL.createObjectURL(processedFile);
+                                    anchorElement.download = newFileName;
+                                    anchorElement.text = newFileName;
+                                    fileDownloadContainer.appendChild(anchorElement);
+
+                                }
+                            });
+                        }
+                    });
+                })
+                function mergeResults(fullRawData, fullTemplateData){
+                    const samples = new Map();
+                    const rawData = fullRawData.slice(3,11).map(row => row.slice(2, -1));
+                    const template = fullTemplateData.slice(2,10).map(row => row.slice(1))
+                    if (rawData.length != template.length) return;
+                    for(let i = 0; i < rawData.length; i++){
+                        for(let j = 0; j < template[i].length; j++){
+                            let [currentType, currentSample] = template[i][j].split("-");
+                            let currentOd = rawData[i][j];
+                            if(samples.has(currentSample)){
+                                samples.get(currentSample).ods.push(Number(currentOd));
+                            }
+                            else{
+                                samples.set(currentSample,{
+                                    sample:currentSample,
+                                    ods:[Number(currentOd)],
+                                    type:currentType,
+                                    mean:0,
+                                    calculateMean(){
+                                        this.mean = this.ods.reduce((prev, curr)=>prev+curr, 0)/this.ods.length;
+                                    }
+                                })
+                            }
+                        }
+                    }
+                    const samplesArray = [];
+                    for(let sample of samples.values()){
+                        sample.calculateMean();
+                        delete sample.calculateMean;
+                        samplesArray.push(sample)
+                    };
+                    return Papa.unparse(samplesArray);
+                }
+    
+        </script>
+    </body>
+</html>
