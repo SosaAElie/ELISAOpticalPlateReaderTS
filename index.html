@@ -5,19 +5,37 @@
         <title>ELISA Optical Plate Reader</title>
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js" integrity="sha512-dfX5uYVXzyU8+KHqj8bjo7UkOdg18PaOtpa48djpNbZHwExddghZ+ZmzWT06R5v6NSk3ZUfsH6FNEDepLx9hPQ==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/simple-statistics/7.8.3/simple-statistics.min.js" integrity="sha512-20e6vQxuYnKMdwYkMA+16QfkAXLyNMtHY3ffIbQiH+GJM7Anux6j1PA6Ah2nyhB/ZNM/+wFlDulOKug7QCw2RQ==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+        <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+        <style>
+            #file-form{
+                display: flex;
+                flex-direction: column;
+                row-gap: 10px;
+                align-items: center;
+
+            }
+            #file-download-container{
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+            }
+        </style>
     </head>
     <body>
         <form id = "file-form" enctype="multipart/form-data">
             <label for = "raw-data">Select Raw Data Text File</label>
-            <input id ="raw-data" type = "file" required>
+            <input id ="raw-data" type = "file" required accept="text/plain">
             <label for = "template">Select Template CSV File</label>
-            <input id = "template" type = "file" required>
+            <input id = "template" type = "file" required accept=".csv">
             <button id = "submit-files">Submit</button>
         </form>
+        <canvas id = "scatter-plot"></canvas>
         <div id = "file-download-container"></div>
         <script>
             const fileForm = document.getElementById("file-form");
             const fileDownloadContainer = document.getElementById("file-download-container");
+            const scatterPlot = document.getElementById("scatter-plot");
             fileForm.addEventListener("submit", event=>{
                 event.preventDefault();
                 const rawDataFile = event.target[0].files[0];
@@ -49,6 +67,10 @@
                         for(let j = 0; j < template[i].length; j++){
                             let [currentType, currentSample] = template[i][j].split("-");
                             let currentOd = rawData[i][j];
+                            let abConcentration = 0;
+                            if (currentType === "Standard"){
+                                abConcentration = Number(currentSample.slice(0,-5));
+                            }
                             if(samples.has(currentSample)){
                                 samples.get(currentSample).ods.push(Number(currentOd));
                             }
@@ -60,7 +82,8 @@
                                     mean:0,
                                     calculateMean(){
                                         this.mean = this.ods.reduce((prev, curr)=>prev+curr, 0)/this.ods.length;
-                                    }
+                                    },
+                                    abConcentration:abConcentration,
                                 })
                             }
                         }
@@ -69,11 +92,43 @@
                     for(let sample of samples.values()){
                         sample.calculateMean();
                         delete sample.calculateMean;
-                        samplesArray.push(sample)
+                        samplesArray.push(sample);
                     };
+                    const standards = samplesArray.filter(sample =>sample.type === "Standard");
+                    const standardPoints = standards.map(standard => {return {x:standard.abConcentration, y:standard.mean}})
+                    const [lrEquation, inverseLrEquation] = getLinearRegression(standards.map(standard => [standard.abConcentration, standard.mean]));
+                    const calculatedStandards = standardPoints.map(standardPoint => {return {x:inverseLrEquation(standardPoint.y), y:standardPoint.y}})
+                    new Chart(scatterPlot, {
+                            type: 'scatter',
+                            data: {
+                                datasets:[{
+                                    label:"Original",
+                                    data:standardPoints,
+                                    
+                                },
+                                {
+                                    label:"Calculated",
+                                    data:calculatedStandards,
+                                    showLine:true,
+                                }]
+                            },
+                            options: {
+                                scales: {
+                                x: {
+                                    type: 'linear',
+                                    position: 'bottom'
+                                }
+                                }
+                            }
+                            })
                     return Papa.unparse(samplesArray);
                 }
-    
+                function getLinearRegression(xyValues){
+                    
+                    const {m,b} = ss.linearRegression(xyValues);
+                    
+                    return [x=>m*x+b, y=>(y-b)/m]
+                }
         </script>
     </body>
 </html>
