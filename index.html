@@ -8,6 +8,9 @@
         <script src="https://cdnjs.cloudflare.com/ajax/libs/simple-statistics/7.8.3/simple-statistics.min.js" integrity="sha512-20e6vQxuYnKMdwYkMA+16QfkAXLyNMtHY3ffIbQiH+GJM7Anux6j1PA6Ah2nyhB/ZNM/+wFlDulOKug7QCw2RQ==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
         <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
         <style>
+            body{
+                background-color: beige;
+            }
             #file-form{
                 display: flex;
                 flex-direction: column;
@@ -98,8 +101,11 @@
                     const standardPoints = standards.map(standard => {return {x:standard.abConcentration, y:standard.mean}})
                     const [lrEquation, inverseLrEquation] = getLinearRegression(standards.map(standard => [standard.abConcentration, standard.mean]));
                     const [logEquation, inverseLogEquation] = getLogarthimicRegression(standards.map(standard => [standard.abConcentration, standard.mean]))
-                    const calculatedStandards = standardPoints.map(standardPoint => {return {x:inverseLrEquation(standardPoint.y), y:standardPoint.y}})
-                    const logStandards = standardPoints.map(standardPoint => {return {x:inverseLogEquation(standardPoint.y), y:standardPoint.y}})
+                    const linearStandards = standardPoints.map(standardPoint => {return {x:standardPoint.x, y:lrEquation(standardPoint.x)}})
+                    const logStandards = standardPoints.map(standardPoint => {
+                        if(standardPoint.y != 0) return {x:standardPoint.x, y:logEquation(standardPoint.x)}
+                        else return standardPoint
+                    })
                     new Chart(scatterPlot, {
                     type: 'scatter',
                             data: {
@@ -109,7 +115,7 @@
                                     
                                 },{
                                     label:"Linear",
-                                    data:calculatedStandards,
+                                    data:linearStandards,
                                     showLine:true,
                                 },{
                                     label:"Logarthimic",
@@ -134,8 +140,9 @@
                 }
                 
                 function getLogarthimicRegression(xyValues){
-                    const logXyValues = xyValues.map(xy=>{return xy.x > 0?{x:Math.log(xy.x),y:xy.y}:xy})
+                    const logXyValues = xyValues.map(xy=>xy[0] != 0?[Math.log(xy[0]), xy[1]]:xy);
                     const {m,b} = ss.linearRegression(logXyValues.slice(0,-1));
+                    console.log("Slope", m, "Intercept", b)
                     return [x=>(Math.log(x)*m)+b, y=>Math.exp((y-b)/m)]
                 }
         </script>
